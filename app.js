@@ -39,7 +39,7 @@
     sendTg: 'Telegramga yuborish',
     sentTg: 'Yuborildi! Telegramni tekshiring',
     subTitle: "Kanallarga obuna bo'ling",
-    subText: "O'ynash uchun quyidagi kanallarga obuna bo'ling",
+    subText: "Davom etish uchun kanallarga obuna bo'ling",
     check: 'Tekshirish',
     notYet: "Hali hamma kanallarga obuna bo'lmadingiz",
     netErr: 'Internet bilan muammo',
@@ -84,7 +84,6 @@
     dome: '<path d="M4 20h16M6 20v-6h12v6"/><path d="M12 5c-3 1.5-5 3.5-5 9h10c0-5.5-2-7.5-5-9z"/><path d="M12 3v2M10.5 20v-3a1.5 1.5 0 0 1 3 0v3"/>',
   };
   const STAR = '<svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2 6.3 20.3l1.2-6.4L2.8 9.5l6.4-.8z"/></svg>';
-  const COIN = '<svg class="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#FFC21A"/><circle cx="12" cy="12" r="7" fill="#FFD95C" stroke="#E5A300" stroke-width="1.5"/><path d="M12 8.5v7M9.8 10.2h4.4M9.8 13.8h4.4" stroke="#C98A00" stroke-width="1.7" stroke-linecap="round"/></svg>';
   const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
   const THEME_ICON = { meva: 'apple', hayvon: 'paw', buyum: 'box', tabiat: 'tree', dino: 'dino', uzbek: 'dome' };
 
@@ -129,7 +128,7 @@
         clearTimeout(timer);
         let j = {};
         try { j = await r.json(); } catch (e) { /* пустой ответ */ }
-        if (!r.ok) { const err = new Error(j.error || 'http'); err.code = j.error || 'http'; err.status = r.status; throw err; }
+        if (!r.ok) { const err = new Error(j.error || 'http'); err.code = j.error || 'http'; err.status = r.status; err.data = j; throw err; }
         return j;
       } catch (e) {
         clearTimeout(timer);
@@ -259,7 +258,7 @@
     app.innerHTML = `<div class="screen">
       <div class="top">
         <div class="logo"><span class="badge">${icon('palette')}</span>Bo'yash</div>
-        <button class="chip-money" data-tab="profile">${COIN}${money(d.player.earned)}</button>
+        <button class="chip-money" data-tab="profile">${money(d.player.earned)}</button>
       </div>
       <div class="filters">${themes.map((t) => `<button class="f ${S.theme === t ? 'on' : ''}" data-theme="${t}">
         ${t === 'all' ? icon('sparkle') : icon(THEME_ICON[t])}${t === 'all' ? T.all : T.themes[t]}</button>`).join('')}</div>
@@ -281,7 +280,7 @@
         ${p.status === 'started' ? `<span class="bar"><i style="width:${p.percent}%"></i></span>` : ''}
       </div>
       <div class="meta"><div class="name">${esc(p.name)}</div>
-        <div class="row2"><span class="price">${COIN}${money(p.price).replace(' ' + T.som, '')}</span>${stars(p.stars)}</div>
+        <div class="row2"><span class="price">${money(p.price)}</span>${stars(p.stars)}</div>
       </div></button>`).join('');
     grid.querySelectorAll('.card').forEach((c) => c.addEventListener('click', () => openEditor(c.dataset.slug)));
     // превью грузим только когда карточка видна
@@ -327,7 +326,7 @@
         </div>
       </div>
       <div class="tiles">
-        <div class="tile"><div class="ic" style="background:var(--gold-soft)">${COIN}</div>
+        <div class="tile"><div class="ic" style="background:var(--gold-soft);color:#C98A00">${icon('wallet')}</div>
           <div class="big">${money(pl.earned)}</div><div class="lbl">${T.earned}</div></div>
         <div class="tile"><div class="ic" style="background:var(--accent-soft);color:var(--accent)">${icon('image')}</div>
           <div class="big">${pl.completed} / ${total}</div><div class="lbl">${T.colored}</div></div>
@@ -427,12 +426,13 @@
 
   // ---------------------------------------------------------------- подписка / ошибки
   // экран подписки — появляется, только когда ребёнок открывает картинку
-  function showGate(channels, onOk) {
+  function showGate(channels, onOk, onCancel) {
     const el = document.createElement('div');
     el.className = 'gate';
     document.body.appendChild(el);
     let closed = false;
-    const close = () => { if (closed) return; closed = true; el.remove(); popLayer(); };
+    let passed = false;
+    const close = () => { if (closed) return; closed = true; el.remove(); popLayer(); if (!passed && onCancel) onCancel(); };
     pushLayer(close);
     const draw = (list) => {
       el.innerHTML = `<div class="center">
@@ -451,19 +451,11 @@
         b.disabled = true;
         try {
           const r = await api('check_sub');
-          if (r.ok) { haptic('win'); close(); onOk(); } else { haptic('err'); toast(T.notYet); draw(r.channels && r.channels.length ? r.channels : list); }
+          if (r.ok) { passed = true; close(); onOk(); } else { haptic('err'); toast(T.notYet); draw(r.channels && r.channels.length ? r.channels : list); }
         } catch (err) { toast(T.netErr); b.disabled = false; }
       });
     };
     draw(channels);
-  }
-
-  async function askSub(slug) {
-    try {
-      const r = await api('check_sub');
-      if (r.ok) { openEditor(slug); return; }
-      showGate(r.channels || [], () => openEditor(slug));
-    } catch (e) { toast(T.netErr); }
   }
 
   function renderMessage(kind) {
@@ -502,7 +494,6 @@
     } catch (e) {
       root.remove();
       document.body.style.overflow = '';
-      if (e.code === 'subscribe') return askSub(slug);
       if (['auth', 'blocked'].includes(e.code)) return handleFatal(e);
       toast(T.netErr);
       return;
@@ -541,7 +532,7 @@
     root.innerHTML = `
       <div class="ed-top">
         <button class="icon-btn" id="eback" aria-label="back">${icon('back')}</button>
-        <div class="prog"><div class="t"><b>${esc(p.name)}</b><span class="price">${COIN}${money(p.price)}</span></div>
+        <div class="prog"><div class="t"><b>${esc(p.name)}</b><span class="price">${money(p.price)}</span></div>
           <div class="track"><i id="pbar"></i></div></div>
         ${done ? '' : `<button class="icon-btn" id="ereset" aria-label="reset">${icon('reset')}</button>`}
       </div>
@@ -684,8 +675,7 @@
       await api('progress', { slug: ed.slug, colors, dt: editorDt() }, { keepalive, retries: 1 });
     } catch (e) {
       ed.dirty = true; // попробуем ещё раз при следующем изменении / выходе
-      if (e.code === 'subscribe') { const sl = ed.slug; closeEditor(); askSub(sl); }
-      else if (['auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); }
+      if (['auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); }
     }
   }
 
@@ -858,9 +848,6 @@
     const ed = ED;
     ed.finishing = true;
     clearTimeout(ed.saveT);
-    playWin();
-    confetti();
-    haptic('win');
     const png = await renderPng(ed.pic);
     let res;
     for (let i = 0; i < 3 && !res; i++) {
@@ -868,9 +855,11 @@
         res = await api('complete', { slug: ed.slug, colors: ed.colors, png, dt: editorDt() }, { timeout: 30000, retries: 1 });
       } catch (e) {
         if (e.code === 'subscribe') {
-          // отписался во время раскраски: прогресс сохранён, после подписки картинка откроется снова
-          ed.finishing = false; ed.dirty = true; store.set(localKey(ed.slug), ed.colors);
-          closeEditor(); askSub(ed.slug); return;
+          // картинка готова, но нет подписки: просим подписаться, потом засчитываем
+          ed.finishing = false;
+          store.set(localKey(ed.slug), ed.colors);
+          showGate((e.data && e.data.channels) || [], () => finish(), () => { if (ED === ed) closeEditor(); });
+          return;
         }
         if (['auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); return; }
         if (e.code === 'not_finished') break;
@@ -885,6 +874,9 @@
       }
     }
     if (!res) { ed.finishing = false; return; }
+    playWin();
+    confetti();
+    haptic('win');
     ed.done = true;
     ed.dirty = false;
     store.del(localKey(ed.slug));
@@ -895,7 +887,7 @@
       S.data.player.completed = res.completed != null ? res.completed : S.data.player.completed + 1;
     }
     const amountLine = res.already ? `<p>${T.already}</p>`
-      : res.amount > 0 ? `<div class="plus">${COIN}+${money(res.amount)}</div>`
+      : res.amount > 0 ? `<div class="plus">+${money(res.amount)}</div>`
         : `<p>${T.limit}</p>`;
     const m = modal(`<div class="hero trophy">${icon('trophy')}</div>
       <h1>${T.congrats}</h1><p>${T.forPic(esc(res.name || ed.p.name))}</p>${amountLine}

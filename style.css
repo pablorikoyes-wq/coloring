@@ -32,7 +32,7 @@ svg.i { width: 24px; height: 24px; flex: none; }
 .logo { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 900; letter-spacing: -.3px; }
 .logo .badge { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--accent), #A78BFA); color: #fff; }
-.chip-money { display: flex; align-items: center; gap: 6px; background: var(--card); padding: 8px 12px 8px 8px;
+.chip-money { display: flex; align-items: center; gap: 6px; background: var(--card); padding: 10px 14px; color: #B07A00;
   border-radius: 999px; box-shadow: var(--shadow); font-weight: 900; font-size: 15px; }
 .coin { width: 24px; height: 24px; flex: none; }
 
@@ -64,7 +64,7 @@ svg.i { width: 24px; height: 24px; flex: none; }
 .meta { padding: 8px 4px 2px; }
 .name { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row2 { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
-.price { display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 900; color: #B07A00; }
+.price { display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 900; color: #B07A00; white-space: nowrap; }
 .price .coin { width: 18px; height: 18px; }
 .card.is-done .price { color: var(--green); }
 .stars-s { display: flex; gap: 1px; }
@@ -191,8 +191,9 @@ h2 { font-size: 20px; font-weight: 900; margin: 22px 4px 12px; }
 @keyframes up { from { transform: translateY(100%); } }
 
 #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 60; }
-#toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -150%); z-index: 70;
-  background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 16px; font-size: 15px; transition: transform .3s; max-width: 90%; text-align: center; }
-#toast.show { transform: translate(-50%, 0); }
+#toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -20px); z-index: 70;
+  background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 16px; font-size: 15px; max-width: 90%; text-align: center;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: transform .3s, opacity .3s, visibility .3s; }
+#toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
 
 .gate { position: fixed; inset: 0; background: var(--bg); z-index: 45; overflow-y: auto; animation: fade .2s; }
