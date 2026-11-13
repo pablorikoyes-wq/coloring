@@ -207,7 +207,6 @@
 
   async function loadState() {
     const j = await api('state', {}, { retries: 2 });
-    if (j.subscribe) { renderGate(j.channels || []); return false; }
     S.data = j;
     S.offset = j.server_time - Date.now();
     // локальный кеш прогресса: если что-то не успело уйти на сервер — добавим
@@ -427,26 +426,44 @@
   }
 
   // ---------------------------------------------------------------- подписка / ошибки
-  function renderGate(channels) {
-    app.innerHTML = `<div class="center">
-      <div class="hero">${icon('bell')}</div>
-      <h1>${T.subTitle}</h1><p>${T.subText}</p>
-      <div class="ch-list">${channels.map((c, i) => `<button class="ch" data-i="${i}">
-        <span class="ic">${icon("send")}</span><span class="nm">${esc(c.title)}</span><span class="go">${icon('chev')}</span></button>`).join('')}</div>
-      <button class="btn" id="chk">${icon('check')}${T.check}</button>
-    </div>`;
-    app.querySelectorAll('.ch').forEach((b) => b.addEventListener('click', () => {
-      const link = channels[+b.dataset.i].link;
-      if (tg && tg.openTelegramLink && /^https:\/\/t\.me\//.test(link)) tg.openTelegramLink(link); else window.open(link, '_blank');
-    }));
-    $('#chk').addEventListener('click', async (e) => {
-      const b = e.currentTarget;
-      b.disabled = true;
-      try {
-        const r = await api('check_sub');
-        if (r.ok) { haptic('win'); await start(); } else { haptic('err'); toast(T.notYet); renderGate(r.channels || channels); }
-      } catch (err) { toast(T.netErr); b.disabled = false; }
-    });
+  // экран подписки — появляется, только когда ребёнок открывает картинку
+  function showGate(channels, onOk) {
+    const el = document.createElement('div');
+    el.className = 'gate';
+    document.body.appendChild(el);
+    let closed = false;
+    const close = () => { if (closed) return; closed = true; el.remove(); popLayer(); };
+    pushLayer(close);
+    const draw = (list) => {
+      el.innerHTML = `<div class="center">
+        <div class="hero">${icon('bell')}</div>
+        <h1>${T.subTitle}</h1><p>${T.subText}</p>
+        <div class="ch-list">${list.map((c, i) => `<button class="ch" data-i="${i}">
+          <span class="ic">${icon("send")}</span><span class="nm">${esc(c.title)}</span><span class="go">${icon('chev')}</span></button>`).join('')}</div>
+        <button class="btn" id="chk">${icon('check')}${T.check}</button>
+      </div>`;
+      el.querySelectorAll('.ch').forEach((b) => b.addEventListener('click', () => {
+        const link = list[+b.dataset.i].link;
+        if (tg && tg.openTelegramLink && /^https:\/\/t\.me\//.test(link)) tg.openTelegramLink(link); else window.open(link, '_blank');
+      }));
+      el.querySelector('#chk').addEventListener('click', async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true;
+        try {
+          const r = await api('check_sub');
+          if (r.ok) { haptic('win'); close(); onOk(); } else { haptic('err'); toast(T.notYet); draw(r.channels && r.channels.length ? r.channels : list); }
+        } catch (err) { toast(T.netErr); b.disabled = false; }
+      });
+    };
+    draw(channels);
+  }
+
+  async function askSub(slug) {
+    try {
+      const r = await api('check_sub');
+      if (r.ok) { openEditor(slug); return; }
+      showGate(r.channels || [], () => openEditor(slug));
+    } catch (e) { toast(T.netErr); }
   }
 
   function renderMessage(kind) {
@@ -462,7 +479,7 @@
   }
 
   function handleFatal(e) {
-    if (e.code === 'subscribe') return start();
+    if (e.code === 'subscribe') return renderShell();
     if (e.code === 'auth') return renderMessage('auth');
     if (e.code === 'blocked') return renderMessage('blocked');
     renderMessage('network');
@@ -485,7 +502,8 @@
     } catch (e) {
       root.remove();
       document.body.style.overflow = '';
-      if (['subscribe', 'auth', 'blocked'].includes(e.code)) return handleFatal(e);
+      if (e.code === 'subscribe') return askSub(slug);
+      if (['auth', 'blocked'].includes(e.code)) return handleFatal(e);
       toast(T.netErr);
       return;
     }
@@ -553,6 +571,8 @@
       selectColor(firstOpenColor());
     }
     updateProgress();
+    // всё уже закрашено, но сервер не успел засчитать (например, не было интернета) — засчитываем
+    if (!done && Object.keys(colors).length === pic.regions.length) setTimeout(finish, 300);
   }
 
   function firstOpenColor(after = 0) {
@@ -664,7 +684,8 @@
       await api('progress', { slug: ed.slug, colors, dt: editorDt() }, { keepalive, retries: 1 });
     } catch (e) {
       ed.dirty = true; // попробуем ещё раз при следующем изменении / выходе
-      if (['subscribe', 'auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); }
+      if (e.code === 'subscribe') { const sl = ed.slug; closeEditor(); askSub(sl); }
+      else if (['auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); }
     }
   }
 
@@ -846,7 +867,12 @@
       try {
         res = await api('complete', { slug: ed.slug, colors: ed.colors, png, dt: editorDt() }, { timeout: 30000, retries: 1 });
       } catch (e) {
-        if (['subscribe', 'auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); return; }
+        if (e.code === 'subscribe') {
+          // отписался во время раскраски: прогресс сохранён, после подписки картинка откроется снова
+          ed.finishing = false; ed.dirty = true; store.set(localKey(ed.slug), ed.colors);
+          closeEditor(); askSub(ed.slug); return;
+        }
+        if (['auth', 'blocked'].includes(e.code)) { closeEditor(true); handleFatal(e); return; }
         if (e.code === 'not_finished') break;
         if (i === 2) {
           const m = modal(`<div class="hero">${icon('alert')}</div><h1 style="font-size:22px">${T.netErr}</h1><p>${T.netErrSub}</p>
