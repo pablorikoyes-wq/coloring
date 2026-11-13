@@ -197,3 +197,30 @@ h2 { font-size: 20px; font-weight: 900; margin: 22px 4px 12px; }
 #toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
 
 .gate { position: fixed; inset: 0; background: var(--bg); z-index: 45; overflow-y: auto; animation: fade .2s; }
+
+/* ---------- вывод денег ---------- */
+button.tile { text-align: left; width: 100%; }
+.tile.tap:active { transform: scale(.97); }
+.tile .take { display: inline-flex; align-items: center; gap: 2px; margin-top: 8px; color: var(--green); font-size: 14px; font-weight: 900; }
+.tile .take .i { width: 16px; height: 16px; }
+.wd { padding: 12px 16px calc(24px + var(--safe-b)); }
+.wd-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 18px; }
+.wd-bal { text-align: center; margin: 14px 0 18px; }
+.wd-bal .lbl { color: var(--muted); font-size: 14px; }
+.wd-bal .big { font-size: 34px; font-weight: 900; letter-spacing: -.5px; color: #B07A00; }
+.ctype { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.ctype button { height: 58px; border-radius: 16px; background: var(--bg); font-size: 18px; font-weight: 900; letter-spacing: .5px;
+  color: var(--muted); box-shadow: inset 0 0 0 2px var(--line); transition: transform .12s; }
+.ctype button:active { transform: scale(.97); }
+.ctype button.on.humo { background: #E8F0FF; color: #1F4FD1; box-shadow: inset 0 0 0 2.5px #1F4FD1; }
+.ctype button.on.uzcard { background: #E6F7EE; color: #0E8A4A; box-shadow: inset 0 0 0 2.5px #0E8A4A; }
+.cnum { width: 100%; height: 60px; margin-top: 8px; border-radius: 16px; border: 0; background: var(--bg); box-shadow: inset 0 0 0 2px var(--line);
+  padding: 0 16px; font: inherit; font-size: 22px; font-weight: 800; letter-spacing: 1.5px; color: var(--ink); font-variant-numeric: tabular-nums;
+  -webkit-user-select: text; user-select: text; outline: none; }
+.cnum:focus { box-shadow: inset 0 0 0 2.5px var(--accent); }
+.cnum::placeholder { color: #C5C2D3; }
+.cnum.bad { box-shadow: inset 0 0 0 2.5px var(--red); animation: shake .4s; }
+.card-saved { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 8px 12px; border-radius: 12px;
+  background: var(--green-soft); color: var(--green); font-size: 14px; }
+.card-saved .i { width: 18px; height: 18px; stroke-width: 3; }
+.sent-t { font-size: 22px; font-weight: 900; }

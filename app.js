@@ -34,6 +34,14 @@
     requestSent: "So'rov yuborildi",
     paid: "Pul to'landi",
     noMoney: "Hozircha yechiladigan pul yo'q",
+    takeOut: 'Yechish',
+    chooseCard: 'Karta turini tanlang',
+    cardNumber: 'Karta raqami',
+    badCard: "Karta raqami noto'g'ri",
+    cardSaved: 'Karta saqlandi',
+    sentSub: "Pul tez orada kartangizga o'tkaziladi",
+    ok: 'Yaxshi',
+    balance: 'Balans',
     myPics: 'Mening rasmlarim',
     noPics: "Hali bo'yalgan rasm yo'q. Birinchi rasmni bo'yang!",
     sendTg: 'Telegramga yuborish',
@@ -326,59 +334,114 @@
         </div>
       </div>
       <div class="tiles">
-        <div class="tile"><div class="ic" style="background:var(--gold-soft);color:#C98A00">${icon('wallet')}</div>
-          <div class="big">${money(pl.earned)}</div><div class="lbl">${T.earned}</div></div>
+        <button class="tile tap" id="bal"><div class="ic" style="background:var(--gold-soft);color:#C98A00">${icon('wallet')}</div>
+          <div class="big">${money(pl.earned)}</div><div class="lbl">${T.earned}</div>
+          <div class="take">${T.takeOut}${icon('chev')}</div></button>
         <div class="tile"><div class="ic" style="background:var(--accent-soft);color:var(--accent)">${icon('image')}</div>
           <div class="big">${pl.completed} / ${total}</div><div class="lbl">${T.colored}</div></div>
       </div>
-      <div class="pay" id="pay"></div>
       <h2>${T.myPics}</h2>
       <div id="gal"></div>
     </div>${tabsHtml()}`;
     bindTabs();
-    renderPay();
+    $('#bal').addEventListener('click', openWithdraw);
     renderGallery();
   }
 
-  function renderPay() {
-    const box = $('#pay');
-    if (!box) return;
+  // ---------------------------------------------------------------- вывод денег (окно по нажатию на баланс)
+  const CARDS = {
+    humo: { name: 'HUMO', hint: '9860 0000 0000 0000', prefix: ['9860'] },
+    uzcard: { name: 'UZCARD', hint: '8600 0000 0000 0000', prefix: ['8600', '5614'] },
+  };
+  const fmtCard = (digits) => digits.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+
+  function openWithdraw() {
+    const el = document.createElement('div');
+    el.className = 'gate wd';
+    document.body.appendChild(el);
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true; clearInterval(timerInt); el.remove(); popLayer();
+      if (S.tab === 'profile') renderProfile();
+    };
+    pushLayer(close);
+    const pl = S.data.player;
     const w = S.data.withdraw;
-    const now = Date.now() + S.offset;
-    const open = w.open || now >= S.data.payout_at;
-    let action;
-    if (w.pending) action = `<div class="sent">${icon('check')}${T.requestSent}</div>`;
-    else if (open && w.available > 0) action = `<button class="btn green" id="wd">${icon('wallet')}${T.withdraw} · ${money(w.available)}</button>`;
-    else if (open && w.last_status === 'paid') action = `<div class="sent">${icon('check')}${T.paid}</div>`;
-    else if (open) action = `<button class="btn" disabled>${icon('wallet')}${T.withdraw}</button><div class="note">${T.noMoney}</div>`;
-    else action = `<button class="btn" disabled>${icon('lock')}${T.withdraw}</button><div class="note">${T.opensOn}</div>`;
-    box.innerHTML = open
-      ? `<div class="lbl">${icon('wallet')}${T.payoutOpen}</div><div class="timer">${money(w.available || S.data.player.earned)}</div>${action}`
-      : `<div class="lbl">${icon('clock')}${T.untilPayout}:</div><div class="timer" id="cd">${fmtCountdown(S.data.payout_at - now)}</div>${action}`;
-    clearInterval(timerInt);
-    if (!open) {
+    let type = pl.card_type || 'humo';
+    let number = pl.card_number || '';
+
+    const head = `<div class="wd-top"><button class="icon-btn" id="wdx">${icon('back')}</button><b>${T.withdraw}</b><span style="width:48px"></span></div>
+      <div class="wd-bal"><div class="lbl">${T.balance}</div><div class="big">${money(pl.earned)}</div></div>`;
+
+    const showTimer = () => {
+      el.innerHTML = `${head}<div class="pay">
+          <div class="lbl">${icon('clock')}${T.untilPayout}:</div>
+          <div class="timer" id="cd">${fmtCountdown(S.data.payout_at - (Date.now() + S.offset))}</div>
+          <div class="note">${T.opensOn}</div>
+          <div class="card-saved">${icon('check')}${T.cardSaved}: ${CARDS[type].name} •••• ${number.slice(-4)}</div>
+          <button class="btn" id="okb" style="margin-top:16px">${T.ok}</button></div>`;
+      $('#wdx', el).addEventListener('click', close);
+      $('#okb', el).addEventListener('click', close);
+      clearInterval(timerInt);
       timerInt = setInterval(() => {
         const left = S.data.payout_at - (Date.now() + S.offset);
-        const el = $('#cd');
-        if (!el) { clearInterval(timerInt); return; }
-        if (left <= 0) { clearInterval(timerInt); refresh().then(() => S.tab === 'profile' && renderProfile()); return; }
-        el.textContent = fmtCountdown(left);
+        const c = $('#cd', el);
+        if (!c) { clearInterval(timerInt); return; }
+        c.textContent = fmtCountdown(left);
+        if (left <= 0) { clearInterval(timerInt); refresh().then(() => { S.data.withdraw.open = true; draw(); }); }
       }, 1000);
-    }
-    const btn = $('#wd');
-    if (btn) btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try {
-        const res = await api('withdraw');
-        haptic('win');
-        S.data.withdraw.pending = true;
-        S.data.withdraw.last_amount = res.amount;
-        renderPay();
-      } catch (e) {
-        btn.disabled = false;
-        if (e.code === 'too_early') toast(T.opensOn); else toast(T.netErr);
-      }
-    });
+    };
+    const showSent = () => {
+      el.innerHTML = `${head}<div class="pay">
+          <div class="hero" style="margin:0 auto 10px;background:var(--green-soft);color:var(--green)">${icon('check')}</div>
+          <div class="sent-t">${T.requestSent}</div><div class="note">${T.sentSub}</div>
+          <button class="btn" id="okb" style="margin-top:16px">${T.ok}</button></div>`;
+      $('#wdx', el).addEventListener('click', close);
+      $('#okb', el).addEventListener('click', close);
+    };
+    const draw = () => {
+      if (S.data.withdraw.pending) { showSent(); return; }
+      const nothing = pl.earned <= 0 || ((S.data.withdraw.open) && S.data.withdraw.available <= 0);
+      el.innerHTML = `${head}
+        <div class="pay" style="text-align:left">
+          <div class="lbl" style="justify-content:flex-start">${T.chooseCard}</div>
+          <div class="ctype">${Object.entries(CARDS).map(([k, c]) => `<button data-t="${k}" class="${k === type ? 'on' : ''} ${k}">${c.name}</button>`).join('')}</div>
+          <div class="lbl" style="justify-content:flex-start;margin-top:16px">${T.cardNumber}</div>
+          <input id="cnum" class="cnum" inputmode="numeric" autocomplete="off" maxlength="19" placeholder="${CARDS[type].hint}" value="${fmtCard(number)}">
+          <button class="btn green" id="go" style="margin-top:18px" ${nothing ? 'disabled' : ''}>${icon('wallet')}${T.withdraw}</button>
+          ${nothing ? `<div class="note" style="text-align:center">${T.noMoney}</div>` : ''}
+        </div>`;
+      $('#wdx', el).addEventListener('click', close);
+      const inp = $('#cnum', el);
+      inp.addEventListener('input', () => { inp.value = fmtCard(inp.value); number = inp.value.replace(/\D/g, ''); inp.classList.remove('bad'); });
+      el.querySelectorAll('.ctype button').forEach((b) => b.addEventListener('click', () => {
+        type = b.dataset.t; number = inp.value.replace(/\D/g, ''); draw(); haptic('ok');
+      }));
+      $('#go', el).addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const d = inp.value.replace(/\D/g, '');
+        if (d.length !== 16 || !CARDS[type].prefix.some((p) => d.startsWith(p))) {
+          inp.classList.add('bad'); haptic('err'); toast(T.badCard); return;
+        }
+        btn.disabled = true;
+        try {
+          const r = await api('card', { card_type: type, card_number: d });
+          pl.card_type = type; pl.card_number = d; number = d;
+          if (!r.open) { haptic('ok'); showTimer(); return; }
+          const res = await api('withdraw');
+          S.data.withdraw.pending = true; S.data.withdraw.last_amount = res.amount;
+          haptic('win'); showSent();
+        } catch (err) {
+          btn.disabled = false;
+          if (err.code === 'bad_card') { inp.classList.add('bad'); toast(T.badCard); }
+          else if (err.code === 'too_early') showTimer();
+          else if (err.code === 'nothing') toast(T.noMoney);
+          else toast(T.netErr);
+        }
+      });
+    };
+    draw();
   }
 
   async function renderGallery() {
